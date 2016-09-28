@@ -1454,11 +1454,11 @@ end
 % CPUCores=str2num(getenv('NUMBER_OF_PROCESSORS')); %#ok<ST2NM>
 poolobj = gcp('nocreate');
 if isempty(poolobj)
-    parpool('local',4);
+    parpool('local',8);
 %     poolobj = gcp('nocreate');
 end
 
-for TrialNo = Start_trial:End_trial
+parfor TrialNo = Start_trial:End_trial
     fname = filenames{TrialNo};
     if ~exist(fname,'file')
         [fname, pathname] = uigetfile('*.tif', 'Select Image Data file');
@@ -2506,7 +2506,7 @@ else
 end
 for i = roi_num_to_move
     CaSignal.ROIinfo(TrialNo).ROIpos{i}(:,1) = CaSignal.ROIinfo(TrialNo).ROIpos{i}(:,1)-move_unit;
-    CaSignal.ROIinfoBack(1).ROIpos{i}(:,1) = CaSignal.ROIinfo(TrialNo).ROIpos{i}(:,1);
+    CaSignal.ROIinfoBack(1).ROIpos{i}(:,1) = CaSignal.ROIinfo(TrialNo).ROIpos{i}(:,1)-move_unit;
     x = CaSignal.ROIinfo(TrialNo).ROIpos{i}(:,1);
     y = CaSignal.ROIinfo(TrialNo).ROIpos{i}(:,2);
     CaSignal.ROIinfo(TrialNo).ROImask{i} = poly2mask(x,y,imsize(1),imsize(2));
@@ -2532,9 +2532,11 @@ else
 end
 for i = roi_num_to_move
     CaSignal.ROIinfo(TrialNo).ROIpos{i}(:,1) = CaSignal.ROIinfo(TrialNo).ROIpos{i}(:,1)+move_unit;
+     CaSignal.ROIinfoBack(1).ROIpos{i}(:,1) = CaSignal.ROIinfoBack(1).ROIpos{i}(:,1) + move_unit;
     x = CaSignal.ROIinfo(TrialNo).ROIpos{i}(:,1);
     y = CaSignal.ROIinfo(TrialNo).ROIpos{i}(:,2);
     CaSignal.ROIinfo(TrialNo).ROImask{i} = poly2mask(x,y,imsize(1),imsize(2));
+    CaSignal.ROIinfoBack(1).ROImask{i} = CaSignal.ROIinfo(TrialNo).ROImask{i};
 end;
 update_ROI_plot(handles);
 handles = update_projection_images(handles);
@@ -2554,7 +2556,7 @@ else
 end
 for i = roi_num_to_move
     CaSignal.ROIinfo(TrialNo).ROIpos{i}(:,2) = CaSignal.ROIinfo(TrialNo).ROIpos{i}(:,2)-move_unit;
-     CaSignal.ROIinfoBack(1).ROIpos{i}(:,2) = CaSignal.ROIinfo(TrialNo).ROIpos{i}(:,2);
+     CaSignal.ROIinfoBack(1).ROIpos{i}(:,2) = CaSignal.ROIinfo(TrialNo).ROIpos{i}(:,2)-move_unit;
     x = CaSignal.ROIinfo(TrialNo).ROIpos{i}(:,1);
     y = CaSignal.ROIinfo(TrialNo).ROIpos{i}(:,2);
     CaSignal.ROIinfo(TrialNo).ROImask{i} = poly2mask(x,y,imsize(1),imsize(2));
@@ -2580,7 +2582,7 @@ else
 end
 for i = roi_num_to_move
     CaSignal.ROIinfo(TrialNo).ROIpos{i}(:,2) = CaSignal.ROIinfo(TrialNo).ROIpos{i}(:,2)+move_unit;
-    CaSignal.ROIinfoBack(1).ROIpos{i}(:,2) = CaSignal.ROIinfo(TrialNo).ROIpos{i}(:,2);
+    CaSignal.ROIinfoBack(1).ROIpos{i}(:,2) = CaSignal.ROIinfo(TrialNo).ROIpos{i}(:,2)+move_unit;
     x = CaSignal.ROIinfo(TrialNo).ROIpos{i}(:,1);
     y = CaSignal.ROIinfo(TrialNo).ROIpos{i}(:,2);
     CaSignal.ROIinfo(TrialNo).ROImask{i} = poly2mask(x,y,imsize(1),imsize(2));
