@@ -33,7 +33,7 @@ function varargout = CaSignal_ROI_GUI_NP_extract(varargin)
 
 % Edit the above text to modify the response to help CaSignal_ROI_GUI_NP_extract
 
-% Last Modified by GUIDE v2.5 01-Sep-2016 14:51:57
+% Last Modified by GUIDE v2.5 25-Nov-2016 21:45:21
 
 % Begin initialization code - DO NOT EDIT
 
@@ -143,7 +143,8 @@ CaSignal.HigherVersionWarning = 0;
 CaSignal.ROINPlabel = [];
 CaSignal.EmptyROIsImport = [];
 CaSignal.OpenWithImagJ = 1;
-
+CaSignal.IsTrialExcluded = [];
+CaSignal.ROIdefineTr = [];
 fprintf('Matlab Two-photon imaging data analysis GUI.\n');
 fprintf('           Version :  2.02.05             \n');
 % Update handles structure
@@ -233,6 +234,8 @@ if ~exist('filename', 'var')
     cd(pathName);
     FileName_prefix = filename(1:end-7);
     CaSignal.data_files = dir([FileName_prefix '*.tif']);
+    CaSignal.IsTrialExcluded = false(length(CaSignal.data_files),1);  % default all trials will be used for future analysis
+    CaSignal.ROIdefineTr = zeros(length(CaSignal.data_files),1);  % define of ROI defined trials
     CaSignal.data_file_names = {};
     for i = 1:length(CaSignal.data_files)
         CaSignal.data_file_names{i} = CaSignal.data_files(i).name;
@@ -268,6 +271,13 @@ else
 end
 CaSignal.ImageArray = im;
 CaSignal.imSize = size(im);
+PreTrFNum = str2num(get(handles.cTrFNumDisp,'String'));
+if ~isempty(PreTrFNum)
+    if PreTrFNum ~= size(im,3)
+        warndlg(sprintf('Current trial frame number(%d) is different from former trial(%d)',size(im,3),PreTrFNum),'Frame number non-match');
+    end
+end
+set(handles.cTrFNumDisp,'String',num2str(size(im,3)));
 if ~isempty(CaSignal.CaTrials)
     if length(CaSignal.CaTrials)<TrialNo || isempty(CaSignal.CaTrials(TrialNo).FileName)
         CaSignal.CaTrials(TrialNo) = init_CaTrial(filename, TrialNo, header);
@@ -304,7 +314,7 @@ if CaSignal.CaTrials_INIT == 1
         if iscell(ROIinfo)
             f1 = fieldnames(ROIinfo{TrialNo}); f2 = fieldnames(CaSignal.ROIinfo);
             for i = 1:length(ROIinfo)
-                for j = 1:length(f1),
+                for j = 1:length(f1)
                     CaSignal.ROIinfo(i).(f2{strcmpi(f2,f1{j})}) = ROIinfo{i}.(f1{j});
                 end
             end
@@ -542,7 +552,8 @@ TrialNo = str2double(get(handles.CurrentTrialNo,'String'));
 % CaSignal.CurrentAnaTrial=[0,0,0];
 if get(handles.dispMeanMode, 'Value')==1
     if ~isfield(CaSignal, 'h_mean_fig') || ~ishandle(CaSignal.h_mean_fig)
-        CaSignal.h_mean_fig = figure('Name','Mean Image','Position',[20   70   1000   900]);
+        CaSignal.h_mean_fig = figure('Name','Mean Image','Position',[20   70   1000   900],'WindowKeyPressFcn',...
+            {@figure1_WindowKeyPressFcn,handles});
         CaSignal.CurrentAnaTrial(1)=0;
 %         CaSignal.CurrentAnaTrial=TrialNo;
     else
@@ -563,7 +574,8 @@ if get(handles.dispMeanMode, 'Value')==1
 end
 if get(handles.dispMaxDelta,'Value')==1
     if ~isfield(CaSignal, 'h_maxDelta_fig') || ~ishandle(CaSignal.h_maxDelta_fig)
-        CaSignal.h_maxDelta_fig = figure('Name','max Delta Image','Position',[130   20   1000   900]);
+        CaSignal.h_maxDelta_fig = figure('Name','max Delta Image','Position',[130   20   1000   900],'WindowKeyPressFcn',...
+            {@figure1_WindowKeyPressFcn,handles});
          CaSignal.CurrentAnaTrial(2)=0;
     else
         figure(CaSignal.h_maxDelta_fig);
@@ -586,7 +598,8 @@ if get(handles.dispMaxDelta,'Value')==1
 end
 if get(handles.dispMaxMode,'Value')==1
     if ~isfield(CaSignal, 'h_max_fig') || ~ishandle(CaSignal.h_max_fig)
-        CaSignal.h_max_fig = figure('Name','Max Projection Image','Position',[200   90   1000   900]);
+        CaSignal.h_max_fig = figure('Name','Max Projection Image','Position',[200   90   1000   900],'WindowKeyPressFcn',...
+            {@figure1_WindowKeyPressFcn,handles});
          CaSignal.CurrentAnaTrial(3)=0;
     else
         figure(CaSignal.h_max_fig)
@@ -942,7 +955,7 @@ while finish_drawing == 0
             return
     end
 end
-
+CaSignal.ROIdefineTr = CurrentROINo;
 CaSignal.ROIinfo(TrialNo).ROIpos{CurrentROINo} = pos;
 CaSignal.ROIinfo(TrialNo).ROImask{CurrentROINo} = BW;
 FrameSize=CaSignal.imSize(1:2);
@@ -1273,7 +1286,6 @@ if ~isempty(emptyROIs)
 end
 %         ROI_del_Callback(hObject, eventdata, handles, n);
 %         CaSignal.CaTrials(1).nROIs=CaSignal.CaTrials(1).nROIs-1;
-        
 
 filenames = CaSignal.data_file_names; 
 nTROIs = CaSignal.CaTrials(1).nROIs;
@@ -1524,6 +1536,7 @@ catch
     end
     fprintf(f_abTr,'.\n');
     fclose(f_abTr);
+    save AbnormalInds.mat AbnormTrInds -v7.3
     fprintf('Can''t save current session data in simplified way, may be caused by some frame dropping at trial number %d.\n',AbnormTrInds);
     %redundant data storage
     save(CaSignal.results_fname, 'CaTrials','-v7.3');
@@ -1541,6 +1554,14 @@ end
 %simplified data storage
 % save(CaSignal.SIMsave_fname,'SavedCaTrials','-v7.3');
 % save(CaSignal.ROIinfoback_fname, 'ROIinfoBU','-v7.3');
+
+
+% save exclude trial inds if any
+if sum(double(CaSignal.IsTrialExcluded))
+    fprintf('Excluded trial exists, saved to mat file for future analysis...\n');
+    ExcludedTrInds = CaSignal.IsTrialExcluded;
+    save(fullfile(CaSignal.results_path,'cSessionExcludeInds.mat'),'ExcludedTrInds','-v7.3');
+end
 
 % save(fullfile(CaSignal.results_path, ['ICA_ROIs_', FileName_prefix '.mat']), 'ICA_ROIs');
 msg_str = sprintf('CaTrials Saved, with %d trials, %d ROIs', length(CaSignal.CaTrials), CaSignal.CaTrials(TrialNo).nROIs);
@@ -1617,6 +1638,12 @@ if TrialNo>0
         open_image_file_button_Callback(hObject, eventdata, handles,filename);
     end
 end
+cTrNum = CaSignal.CurrentTrialNo;
+if CaSignal.IsTrialExcluded(cTrNum)
+    set(handles.ExcludeCTr,'value',1);
+else
+    set(handles.ExcludeCTr,'value',0);
+end
 
 function PrevTrialButton_Callback(hObject, eventdata, handles)
 global CaSignal % ROIinfo ICA_ROIs
@@ -1645,6 +1672,12 @@ else
     filename = CaSignal.data_file_names{1};
     open_image_file_button_Callback(hObject, eventdata, handles,filename);
 end
+cTrNum = CaSignal.CurrentTrialNo;
+if CaSignal.IsTrialExcluded(cTrNum)
+    set(handles.ExcludeCTr,'value',1);
+else
+    set(handles.ExcludeCTr,'value',0);
+end
 
 function TwoStepPreTrial_Callback(hObject, eventdata, handles)
 global CaSignal % ROIinfo ICA_ROIs
@@ -1661,6 +1694,12 @@ else
         open_image_file_button_Callback(hObject, eventdata, handles,filename);
     end
 end
+cTrNum = CaSignal.CurrentTrialNo;
+if CaSignal.IsTrialExcluded(cTrNum)
+    set(handles.ExcludeCTr,'value',1);
+else
+    set(handles.ExcludeCTr,'value',0);
+end
 
 function TwoStepNextTrial_Callback(hObject, eventdata, handles)
 global CaSignal % ROIinfo ICA_ROIs
@@ -1673,6 +1712,12 @@ else
     filename = CaSignal.data_file_names{1};
     open_image_file_button_Callback(hObject, eventdata, handles,filename);
 end
+cTrNum = CaSignal.CurrentTrialNo;
+if CaSignal.IsTrialExcluded(cTrNum)
+    set(handles.ExcludeCTr,'value',1);
+else
+    set(handles.ExcludeCTr,'value',0);
+end
 
 function go_to_last_trial_button_Callback(hObject, eventdata, handles)
 global CaSignal % ROIinfo ICA_ROIs
@@ -1681,7 +1726,12 @@ if  LastTrialNo > 0 % exist(filename,'file')
     filename = CaSignal.data_file_names{LastTrialNo};
     open_image_file_button_Callback(hObject, eventdata, handles,filename);
 end
-
+cTrNum = CaSignal.CurrentTrialNo;
+if CaSignal.IsTrialExcluded(cTrNum)
+    set(handles.ExcludeCTr,'value',1);
+else
+    set(handles.ExcludeCTr,'value',0);
+end
 
 function AnalysisModeBGsub_Callback(hObject, eventdata, handles)
 
@@ -2712,7 +2762,7 @@ global CaSignal
 if iscell(ROIinfo)
     f1 = fieldnames(ROIinfo{1}); f2 = fieldnames(CaSignal.ROIinfo);
     for i = 1:length(ROIinfo)
-        for j = 1:length(f1),
+        for j = 1:length(f1)
             CaSignal.ROIinfo(i).(f2{strcmpi(f2,f1{j})}) = ROIinfo{i}.(f1{j});
         end
     end
@@ -2929,3 +2979,58 @@ function ImageJPathET_Callback(hObject, eventdata, handles)
 
 % Hints: get(hObject,'String') returns contents of ImageJPathET as text
 %        str2double(get(hObject,'String')) returns contents of ImageJPathET as a double
+
+
+% --- Executes on button press in ExcludeCTr.
+function ExcludeCTr_Callback(hObject, eventdata, handles)
+% hObject    handle to ExcludeCTr (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+global CaSignal
+cTrNum = CaSignal.CurrentTrialNo;
+CheckState = get(hObject,'Value');
+if CheckState
+    CaSignal.IsTrialExcluded(cTrNum) = true;
+    fprintf('Trial number %d will be excluded from further analysis.\n',cTrNum);
+else
+    CaSignal.IsTrialExcluded(cTrNum) = false;
+    fprintf('Trial number %d will be included for further analysis.\n',cTrNum);
+end
+
+% Hint: get(hObject,'Value') returns toggle state of ExcludeCTr
+
+
+% --- Executes during object creation, after setting all properties.
+function cTrFrameNum_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to cTrFrameNum (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+
+% --- Executes during object creation, after setting all properties.
+function cTrFNumDisp_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to cTrFNumDisp (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+set(hObject,'ForegroundColor','r','FontSize',10);
+
+% --- Executes on key press with focus on figure1 or any of its controls.
+function figure1_WindowKeyPressFcn(hObject, eventdata, handles)
+% hObject    handle to figure1 (see GCBO)
+% eventdata  structure with the following fields (see MATLAB.UI.FIGURE)
+%	Key: name of the key that was pressed, in lower case
+%	Character: character interpretation of the key(s) that was pressed
+%	Modifier: name(s) of the modifier key(s) (i.e., control, shift) pressed
+% handles    structure with handles and user data (see GUIDATA)
+switch eventdata.Key   %'uparrow','downarrow','leftarrow','rightarrow'.
+    case 'rightarrow'
+        NextTrialButton_Callback(hObject, eventdata, handles);
+    case 'leftarrow'
+        PrevTrialButton_Callback(hObject, eventdata, handles);
+    case 'downarrow'
+        TwoStepNextTrial_Callback(hObject, eventdata, handles);
+    case 'uparrow'
+        TwoStepPreTrial_Callback(hObject, eventdata, handles);
+    otherwise
+        fprintf('Key pressed without response.\n');
+end
